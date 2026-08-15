@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher
 from config import BOT_TOKEN
 
 from handlers.user_handlers import router as user_router
+from handlers.generate_handlers import router as generate_router
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -13,6 +14,7 @@ async def main():
     dp = Dispatcher()
     
     dp.include_router(user_router)
+    dp.include_router(generate_router)
     
     print("Start")
     
