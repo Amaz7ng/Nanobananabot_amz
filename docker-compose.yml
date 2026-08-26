@@ -13,7 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    minio:
+  minio:
     image: minio/minio:RELEASE.2024-01-16T16-07-38Z
     container_name: photo_bot_minio
     restart: always
