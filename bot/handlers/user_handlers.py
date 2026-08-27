@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from bot.database.models import User
 from bot.database.db_setup import async_session
+from bot.keyboards.reply import get_main_keyboard
 
 router = Router()
 
@@ -14,6 +15,8 @@ async def cmd_start(message: Message):
         user = await session.scalar(
             select(User).where(User.telegram_id == message.from_user.id)
         )
+        
+        main_kb = get_main_keyboard()
         
         if not user:
             user = User(
@@ -28,11 +31,13 @@ async def cmd_start(message: Message):
             await message.answer(
                 f"Привет, {message.from_user.first_name}! \n\n"
                 f"Я ИИ по обработке фото. Тебе начислено {user.balance} бесплатных генераций!\n"
-                f"Просто отправь мне фото."
+                f"Воспользуйся меню ниже или просто отправь мне фото.",
+                reply_markup=main_kb
             )
         else:
             await message.answer(
                 f"С возвращением, {message.from_user.first_name}!\n\n"
                 f"Твой баланс: {user.balance} генераций.\n"
-                f"Жду фото!"
+                f"Жду фото!",
+                reply_markup=main_kb
             )
