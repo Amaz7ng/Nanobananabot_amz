@@ -1,9 +1,9 @@
 import io
+import logging
 from sqlalchemy import select
 from aiogram import Router, F, Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
-
 
 from bot.config import config
 from bot.database.models import User
@@ -30,14 +30,14 @@ async def handle_photo(message: Message, state: FSMContext):
         )
         
         if not user or user.balance <= 0: 
-            await message.answer("У вас закончились генерации! Пополните баланс.")
+            await message.answer("❌ У вас закончились генерации! Пополните баланс.")
             return
 
     photo_id = message.photo[-1].file_id
     await state.update_data(photo_file_id=photo_id)
 
     await message.answer(
-        "Отличное фото! Выбери стиль для обработки или напиши свой промпт:",
+        "📸 Отличное фото! Выбери стиль для обработки или напиши свой промпт:",
         reply_markup=get_styles_keyboard()
     )
     await state.set_state(GenerateState.waiting_for_style)
@@ -50,7 +50,7 @@ async def process_style_selection(callback: CallbackQuery, state: FSMContext, bo
     style_data = callback.data
     
     if style_data == "style_custom":
-        await callback.message.edit_text("Напиши на английском, что ты хочешь увидеть на фото:")
+        await callback.message.edit_text("✏️ Напиши на английском, что ты хочешь увидеть на фото:")
         await state.set_state(GenerateState.waiting_for_prompt)
         return
 
@@ -70,30 +70,55 @@ async def start_generation(message: Message, bot: Bot, state: FSMContext, prompt
     
     await state.clear()
     
-    status_msg = await message.answer("Скачиваю фото и подготавливаю запрос...")
+    if not photo_file_id:
+        await message.answer("❌ Ошибка: photo_id не найден. Отправьте фото заново.")
+        return
 
-    file_info = await bot.get_file(photo_file_id)
-    
-    image_url = f"https://api.telegram.org/file/bot{config.BOT_TOKEN}/{file_info.file_path}"
-    
+    status_msg = await message.answer("⏳ Проверяем баланс и подготавливаем запрос...")
+
+    async with async_session() as session:
+        user = await session.scalar(select(User).where(User.telegram_id == user_id))
+        
+        if not user or user.balance <= 0:
+            await status_msg.edit_text("❌ У вас закончились генерации! Пополните баланс.")
+            return
+            
+        user.balance -= 1
+        await session.commit()
+        remaining_balance = user.balance
 
     try:
-        await status_msg.edit_text(f"Нейросеть генерирует изображение...\n<i>Запрос: {prompt}</i>", parse_mode="HTML")
+        file_info = await bot.get_file(photo_file_id)
+        image_url = f"https://api.telegram.org/file/bot{config.BOT_TOKEN}/{file_info.file_path}"
+
+        await status_msg.edit_text(
+            f"🎨 Нейросеть генерирует изображение...\n<i>Запрос: {prompt}</i>", 
+            parse_mode="HTML"
+        )
 
         task_id = await create_nano_banana_task(prompt=prompt, image_url=image_url)
         result_url = await wait_for_completion(task_id)
 
-        async with async_session() as session:
-            user = await session.scalar(select(User).where(User.telegram_id == user_id))
-            user.balance -= 1
-            await session.commit()
-            balance = user.balance
-
         await message.answer_photo(
             photo=result_url,
-            caption=f"Готово!\n Осталось генераций: {balance}"
+            caption=f"✅ Готово!\n⭐️ Осталось генераций: {remaining_balance}"
         )
-        await status_msg.delete()
+        
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
 
     except Exception as e:
-        await status_msg.edit_text(f"❌ Произошла ошибка: {str(e)}")
+        logging.error(f"Ошибка при генерации у юзера {user_id}: {e}", exc_info=True)
+
+        async with async_session() as session:
+            user = await session.scalar(select(User).where(User.telegram_id == user_id))
+            if user:
+                user.balance += 1
+                await session.commit()
+
+        await status_msg.edit_text(
+            "❌ Произошла ошибка во время генерации изображения.\n\n"
+            "Попытка возвращена на ваш баланс. Попробуйте еще раз позже."
+        )

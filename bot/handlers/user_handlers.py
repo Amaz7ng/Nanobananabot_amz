@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import CommandStart
 from sqlalchemy import select
@@ -40,4 +40,20 @@ async def cmd_start(message: Message):
                 f"Твой баланс: {user.balance} генераций.\n"
                 f"Жду фото!",
                 reply_markup=main_kb
+            )
+            
+@router.message(F.text == "👤 Профиль")
+async def profile_handler(message: Message):
+    async with async_session() as session:
+        user = await session.scalar(
+            select(User).where(User.telegram_id == message.from_user.id)
+        )
+        
+        if user:
+            await message.answer(
+                f"👤 <b>Твой профиль</b>\n\n"
+                f"ID: <code>{user.telegram_id}</code>\n"
+                f"Имя: {user.full_name or 'Не указано'}\n"
+                f"Баланс: {user.balance} ⭐️ генераций",
+                parse_mode="HTML"
             )

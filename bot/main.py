@@ -6,12 +6,20 @@ from aiogram.client.session.aiohttp import AiohttpSession
 
 from bot.config import config
 from bot.database.db_setup import init_db
+from bot.middlewares.throttling import ThrottlingMiddleware
 from bot.handlers.user_handlers import router as user_router
 from bot.handlers.payment_handlers import router as payment_router
 from bot.handlers.generate_handlers import router as generate_router
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("bot_log.log", encoding="utf-8"),
+        logging.StreamHandler()
+        ]
+    )
     
     await init_db()
     
@@ -22,12 +30,15 @@ async def main():
     
     bot = Bot(token=config.BOT_TOKEN, session=session)
     
+    
     dp = Dispatcher()
     dp.include_router(payment_router)
     dp.include_router(user_router)
     dp.include_router(generate_router)
     
     print("Start")
+    
+    dp.message.middleware(ThrottlingMiddleware(time_limit=2))
     
     await dp.start_polling(bot)
     
