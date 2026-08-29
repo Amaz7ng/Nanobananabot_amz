@@ -73,7 +73,6 @@ async def wait_for_completion(task_id: str, max_attempts: int = 120, delay: int 
                 if state in ["SUCCESS", "COMPLETED", "DONE"]:
                     result_json_str = data.get("resultJson")
                     if result_json_str:
-                        import json
                         try:
                             parsed_data = json.loads(result_json_str)
                             result_urls = parsed_data.get("resultUrls", [])

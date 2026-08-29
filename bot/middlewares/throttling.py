@@ -1,4 +1,3 @@
-# bot/middlewares/throttling.py
 from typing import Any, Awaitable, Callable, Dict
 from aiogram import BaseMiddleware
 from aiogram.types import Message
@@ -15,7 +14,7 @@ class ThrottlingMiddleware(BaseMiddleware):
         data: Dict[str, Any]
     ) -> Any:
         if event.chat.id in self.limit:
-            return # Если юзер спамит — просто игнорируем
+            return
         
         self.limit[event.chat.id] = None
         return await handler(event, data)
